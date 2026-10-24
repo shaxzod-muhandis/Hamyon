@@ -1,0 +1,15 @@
+# Vercel Hobby cron kuniga 1 marta ishlaydi. Eslatmalar vaqtida kelishi uchun
+# har 10 daqiqada /api/cron/tick ni shu workflow chaqiradi.
+# Repo Settings → Secrets and variables → Actions: APP_URL va CRON_SECRET
+name: tick
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Eslatmalarni tekshirish
+        run: |
+          curl -fsS -X POST -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "${{ secrets.APP_URL }}/api/cron/tick"
