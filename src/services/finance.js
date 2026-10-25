@@ -223,7 +223,7 @@ async function dashboard(user, now = new Date()) {
   const todayTx = await T.onDate(user.id, user.tz, today, 4);
   const [stats, prevStats, todayStats, bud, fc, up, safe, cur, prev] = await Promise.all([
     periodStats(user.id, user.tz, monthFrom, today),
-    periodStats(user.id, user.tz, prevFrom, prevTo),
+    periodStats(user.id, user.tz, prevFrom, D.withDay(prevFrom, D.dayNum(today))),
     periodStats(user.id, user.tz, today, today),
     budget(user, today),
     forecast(user, today, t.liquid),

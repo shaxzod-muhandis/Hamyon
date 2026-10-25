@@ -16,8 +16,10 @@ Interfeys va hisob-kitob qoidalari: `TZ — Hamyon UI/UX` hujjati.
   (Me'yorda / Diqqat / Oshishi mumkin / Limitdan oshdi), prognoz va xavfsiz chegara, qarzlar (to'lov tarixi bilan).
 - **Eslatmalar**: kiritish, kunlik/haftalik/oylik hisobot, qarz va majburiy to'lovlar, mablag' yetishmasligi;
   budjet 80%/100% ogohlantirishi darhol.
-- **Mini App uchun API** (tayyor): `GET /api/dashboard`, `GET|POST|DELETE /api/transactions`
-  (`Authorization: tma <initData>`, imzo tekshiriladi). Frontend — 2-bosqich.
+- **Mini App** (`public/`, build'siz): Asosiy (erkin pul, sur'at grafigi, budjet, prognoz), Kirim va chiqim
+  (filtr, qidiruv, sahifalash, guruhli amallar), Hisoblar, Qarzlar, Budjet, Reja va prognoz, Tahlil, Eslatmalar,
+  Sozlamalar; yorug'/qorong'i rejim; mobilda pastki menyu, bottom-sheet va raqam klaviaturasi.
+  REST API: `src/api.js` (`Authorization: tma <initData>` yoki brauzer sessiyasi `Bearer`).
 
 ## Tuzilma
 

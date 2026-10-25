@@ -65,7 +65,7 @@ const id = (req) => Number(req.params.id);
 // ── Profil, meta, sozlamalar ───────────────────────────────────────────
 const publicUser = (u) => ({
   id: u.id, first_name: u.first_name, username: u.username, tz: u.tz, theme: u.theme,
-  safe_threshold: u.safe_threshold, usd_rate: u.usd_rate, bot_connected: !!u.chat_id,
+  safe_threshold: u.safe_threshold, usd_rate: u.usd_rate, last_account_id: u.last_account_id, bot_connected: !!u.chat_id,
   bot_username: process.env.BOT_USERNAME || null,
 });
 
@@ -77,6 +77,12 @@ router.get("/me", wrap(async (req, res) => {
 router.get("/meta", wrap(async (req, res) => {
   const [accs, archived, cats] = await Promise.all([F.accounts(req.user), F.accounts(req.user, { archived: true }), Categories.list(req.user.id)]);
   res.json({ user: publicUser(req.user), today: req.today, accounts: [...accs, ...archived], categories: cats });
+}));
+
+// Menyudagi qizil nishonlar (TZ 3.1): muddati o'tgan qarzlar, limitdan oshgan kategoriyalar
+router.get("/badges", wrap(async (req, res) => {
+  const [debts, budget] = await Promise.all([F.debts(req.user.id, { openOnly: true }), F.budget(req.user, req.today)]);
+  res.json({ debts: debts.filter((d) => d.due_date && d.due_date < req.today).length, budget: budget.over_count });
 }));
 
 router.put("/settings", wrap(async (req, res) => {

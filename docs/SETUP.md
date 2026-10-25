@@ -49,9 +49,19 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<loyiha>.vercel.app
 ```
 Keyin botga `/start` yozing.
 
-## 6. Lokal ishlab chiqish
+## 6. Mini App (veb-ilova)
 
-`npm run dev` + `cloudflared tunnel --url http://localhost:3000` (yoki ngrok) → vaqtinchalik
+Frontend `public/` papkasida (build yo'q) va shu Vercel loyihasidan xizmat qiladi. Yoqish:
+
+1. Vercel env: `WEBAPP_ENABLED=1`, `BOT_USERNAME=<bot username, @ siz>` → qayta deploy.
+2. `curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<loyiha>.vercel.app/api/admin/setup` —
+   botning menyu tugmasi (**Hamyon**) endi ilovani ochadi, `📱 Ilova` tugmasi ham paydo bo'ladi.
+3. Brauzerdan kirish uchun (Telegram Login Widget): BotFather → `/setdomain` → botni tanlang → `<loyiha>.vercel.app`.
+4. Mini App ochilganda `Telegram.WebApp.initData` serverda imzo bilan tekshiriladi; brauzerda 30 kunlik sessiya tokeni beriladi.
+
+## 7. Lokal ishlab chiqish
+
+`npm run dev` (http://localhost:3000) + namunaviy ma'lumot: `node scripts/demo-seed.js` (sessiya tokenini chiqaradi — brauzerda `localStorage.hamyon_token` ga qo'ying) + `cloudflared tunnel --url http://localhost:3000` (yoki ngrok) → vaqtinchalik
 `APP_URL` qilib `npm run setup:bot`.
 
 ## Asosiy qoidalar

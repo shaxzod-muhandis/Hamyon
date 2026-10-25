@@ -3,6 +3,14 @@ const { norm } = require("./users");
 
 class UserError extends Error {}
 
+const LIST_SELECT = `t.id, t.kind, t.amount, t.to_amount, t.note, t.occurred_at, t.debt_id,
+  (t.occurred_at at time zone $2)::date::text as local_date, to_char(t.occurred_at at time zone $2, 'HH24:MI') as local_time,
+  t.account_id, a.name account_name, a.currency, t.to_account_id, ta.name to_account_name,
+  t.category_id, c.name category_name, c.color category_color, c.system_key`;
+const LIST_FROM = `from transactions t join accounts a on a.id=t.account_id
+  left join accounts ta on ta.id=t.to_account_id left join categories c on c.id=t.category_id`;
+
+
 const run = (q) => q || db.query;
 
 async function getAccount(userId, id, q) {
@@ -91,11 +99,7 @@ async function recent(userId, limit = 8) {
 
 async function onDate(userId, tz, date, limit = 50) {
   const r = await db.query(
-    `select t.id, t.kind, t.amount, t.note, t.occurred_at, a.name account_name, a.currency, ta.name to_account_name,
-            c.name category_name, c.emoji category_emoji, c.system_key
-       from transactions t join accounts a on a.id=t.account_id
-       left join accounts ta on ta.id=t.to_account_id
-       left join categories c on c.id=t.category_id
+    `select ${LIST_SELECT} ${LIST_FROM}
       where t.user_id=$1 and t.deleted_at is null and (t.occurred_at at time zone $2)::date = $3::date
       order by t.occurred_at desc, t.id desc limit $4`, [userId, tz, date, limit]);
   return r.rows;
@@ -130,13 +134,6 @@ async function occurredFrom(tz, date, time) {
   const r = await db.query("select (($1::date + $2::time) at time zone $3) as ts", [date, time || "12:00", tz]);
   return r.rows[0].ts;
 }
-
-const LIST_SELECT = `t.id, t.kind, t.amount, t.to_amount, t.note, t.occurred_at, t.debt_id,
-  (t.occurred_at at time zone $2)::date::text as local_date, to_char(t.occurred_at at time zone $2, 'HH24:MI') as local_time,
-  t.account_id, a.name account_name, a.currency, t.to_account_id, ta.name to_account_name,
-  t.category_id, c.name category_name, c.color category_color, c.system_key`;
-const LIST_FROM = `from transactions t join accounts a on a.id=t.account_id
-  left join accounts ta on ta.id=t.to_account_id left join categories c on c.id=t.category_id`;
 
 // Filtrlangan ro'yxat: { items, summary, day_totals, has_more }
 async function search(user, f = {}) {
