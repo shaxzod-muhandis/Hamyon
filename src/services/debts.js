@@ -56,4 +56,67 @@ async function listOpen(user) {
   return F.debts(user.id, { openOnly: true });
 }
 
-module.exports = { createDebt, payDebt, listOpen };
+const D = require("../lib/dates");
+
+// Qarz kartasi uchun to'liq ro'yxat (TZ 9.3): holat, muddat qatori, to'lovlar tarixi
+async function view(user, today) {
+  const ds = await F.debts(user.id);
+  const pays = (await db.query(
+    `select p.id, p.debt_id, p.amount, to_char(p.paid_at at time zone $2, 'YYYY-MM-DD') date, a.name account_name
+       from debt_payments p join debts d on d.id=p.debt_id join accounts a on a.id=p.account_id
+      where d.user_id=$1 order by p.paid_at desc, p.id desc`, [user.id, user.tz])).rows;
+  const by = {};
+  for (const p of pays) (by[p.debt_id] ||= []).push(p);
+  const items = ds.map((d) => {
+    let status = "active", label = "Faol";
+    if (d.closed) { status = "closed"; label = "Yopilgan"; }
+    else if (d.due_date && d.due_date < today) { status = "overdue"; label = "Muddati o‘tgan"; }
+    else if (d.paid > 0) { status = "partial"; label = d.direction === "payable" ? "Qisman to‘langan" : "Qisman qaytarilgan"; }
+    let next = null;
+    if (!d.closed && d.pay_day) {
+      const tm = D.withDay(today, d.pay_day);
+      next = tm >= today ? tm : D.withDay(D.addMonths(today, 1), d.pay_day);
+    }
+    return {
+      ...d, status, status_label: label, days_left: d.due_date ? D.diffDays(d.due_date, today) : null,
+      days_late: d.due_date && d.due_date < today && !d.closed ? D.diffDays(today, d.due_date) : 0,
+      next_payment: next, payments: by[d.id] || [], start_date: d.start_date,
+    };
+  });
+  const open = items.filter((x) => !x.closed);
+  const sum = (dir) => open.filter((x) => x.direction === dir).reduce((s, x) => s + x.remaining, 0);
+  const order = (a, b) => (a.closed - b.closed) || ((a.due_date || "9999") < (b.due_date || "9999") ? -1 : (a.due_date || "9999") > (b.due_date || "9999") ? 1 : 0);
+  return {
+    summary: { receivables: sum("receivable"), payables: sum("payable"), net: sum("payable") - sum("receivable"), overdue: open.filter((x) => x.status === "overdue").length },
+    items: items.sort(order),
+  };
+}
+
+async function update(user, id, i) {
+  const cur = (await db.query("select * from debts where id=$1 and user_id=$2", [id, user.id])).rows[0];
+  if (!cur) throw new UserError("Qarz topilmadi");
+  const who = i.who !== undefined ? String(i.who).trim().slice(0, 80) : cur.who;
+  if (!who) throw new UserError("Kim ekanini yozing");
+  const due = i.due_date !== undefined ? (i.due_date || null) : cur.due_date;
+  if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new UserError("Sana noto‘g‘ri");
+  return (await db.query(
+    `update debts set who=$3, due_date=$4, interest_pct=$5, monthly_payment=$6, pay_day=$7, note=$8 where id=$1 and user_id=$2 returning *`,
+    [id, user.id, who, due, i.interest_pct !== undefined ? i.interest_pct : cur.interest_pct,
+      i.monthly_payment !== undefined ? i.monthly_payment || null : cur.monthly_payment, i.pay_day !== undefined ? i.pay_day || null : cur.pay_day,
+      i.note !== undefined ? i.note || null : cur.note])).rows[0];
+}
+
+// Qarzni o'chirish: bog'liq operatsiyalar ham o'chiriladi, balanslar qayta hisoblanadi
+async function remove(user, id) {
+  return db.tx(async (c) => {
+    const q = c.query.bind(c);
+    const d = (await q("select id from debts where id=$1 and user_id=$2 for update", [id, user.id])).rows[0];
+    if (!d) throw new UserError("Qarz topilmadi");
+    await q("update transactions set deleted_at=now() where debt_id=$1 and deleted_at is null", [id]);
+    await q("delete from debt_payments where debt_id=$1", [id]);
+    await q("delete from debts where id=$1", [id]);
+    return true;
+  });
+}
+
+module.exports = { createDebt, payDebt, listOpen, view, update, remove };

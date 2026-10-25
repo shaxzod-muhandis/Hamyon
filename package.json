@@ -7,7 +7,7 @@
     "db:migrate": "node scripts/migrate.js",
     "db:migrate:test": "node scripts/migrate.js --test",
     "setup:bot": "node scripts/setup-bot.js",
-    "test": "node --test test/parse.test.js test/bot.test.js test/http.test.js"
+    "test": "node --test test/parse.test.js test/bot.test.js test/http.test.js test/api.test.js"
   },
   "dependencies": {
     "express": "^4.19.2",

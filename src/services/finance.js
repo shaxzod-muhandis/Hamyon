@@ -12,7 +12,7 @@ const STAT_WHERE = `t.user_id = $1 and t.deleted_at is null and t.kind in ('expe
 
 const toUzs = (balance, currency, rate) => (currency === "USD" ? Math.round((balance * rate) / 100) : balance);
 
-async function accounts(user, { archived = false } = {}) {
+async function accounts(user, { archived = false, asOf = null } = {}) {
   const r = await db.query(
     `select a.id, a.name, a.short_name, a.type, a.currency, a.is_liquid, a.archived, a.initial_balance,
             a.initial_balance + coalesce(sum(case
@@ -23,8 +23,9 @@ async function accounts(user, { archived = false } = {}) {
               else 0 end), 0)::bigint as balance
        from accounts a
        left join transactions t on t.deleted_at is null and (t.account_id=a.id or t.to_account_id=a.id)
+            and ($3::date is null or (t.occurred_at at time zone $4)::date <= $3::date)
       where a.user_id=$1 and a.archived = $2
-      group by a.id order by a.sort, a.id`, [user.id, archived]);
+      group by a.id order by a.sort, a.id`, [user.id, archived, asOf, user.tz]);
   return r.rows.map((a) => ({ ...a, balance_uzs: toUzs(a.balance, a.currency, user.usd_rate) }));
 }
 
@@ -121,10 +122,13 @@ async function plannedRows(userId) {
 // [from, to] oralig'idagi rejali tushum/chiqim va qarz to'lovlari: [{date, name, amount(+/-), kind}]
 async function scheduled(userId, from, to, { forecastOnlyIncome = true } = {}) {
   const out = [];
+  const exc = new Set((await db.query("select planned_id || ':' || date::text k from planned_exceptions e join planned_transactions p on p.id=e.planned_id where p.user_id=$1", [userId])).rows.map((r) => r.k));
   for (const p of await plannedRows(userId)) {
     if (p.kind === "income" && forecastOnlyIncome && !p.include_in_forecast) continue;
-    for (const date of D.occurrences(p.start_date, p.recurrence, from, to))
-      out.push({ date, name: p.name, amount: p.kind === "income" ? p.amount : -p.amount, kind: p.kind === "income" ? "income" : "planned", planned_id: p.id });
+    for (const date of D.occurrences(p.start_date, p.recurrence, from, to)) {
+      if (exc.has(`${p.id}:${date}`)) continue;
+      out.push({ date, name: p.name, amount: p.kind === "income" ? p.amount : -p.amount, kind: p.kind === "income" ? "income" : "planned", planned_id: p.id, include: p.kind === "income" ? p.include_in_forecast : true });
+    }
   }
   for (const d of await debts(userId, { openOnly: true })) {
     if (d.direction !== "payable") continue;
@@ -214,6 +218,9 @@ async function dashboard(user, now = new Date()) {
   const monthFrom = D.monthStart(today);
   const prevFrom = D.monthStart(D.addMonths(today, -1));
   const prevTo = D.monthEnd(prevFrom);
+  const T = require("./transactions");
+  const prevAccs = await accounts(user, { asOf: D.addDays(monthFrom, -1) });
+  const todayTx = await T.onDate(user.id, user.tz, today, 4);
   const [stats, prevStats, todayStats, bud, fc, up, safe, cur, prev] = await Promise.all([
     periodStats(user.id, user.tz, monthFrom, today),
     periodStats(user.id, user.tz, prevFrom, prevTo),
@@ -242,9 +249,9 @@ async function dashboard(user, now = new Date()) {
   return {
     today_date: today,
     safe_to_spend: safe,
-    totals: { ...t, total_prev_month_end: null },
+    totals: { ...t, total_prev_month_end: prevAccs.reduce((x, a) => x + a.balance_uzs, 0) },
     accounts: accs,
-    today: { income: todayStats.income, expense: todayStats.expense },
+    today: { income: todayStats.income, expense: todayStats.expense, transactions: todayTx },
     spending_pace: { daily_cumulative: daily, prev_month_cumulative: prevCum, budget_total: bud.limit, projection },
     budget_top: bud.items.slice(0, 5),
     budget: { limit: bud.limit, spent: bud.spent, pct: bud.pct, month_pct: bud.month_pct },
@@ -267,5 +274,5 @@ function pctChange(cur, prev) {
 
 module.exports = {
   accounts, debts, totals, periodStats, dailyExpense, categoryNames, budget, scheduled, safeToSpend,
-  forecast, upcoming, dashboard, pctChange, avgDailySpend, toUzs,
+  forecast, upcoming, dashboard, pctChange, avgDailySpend, toUzs, AMT_UZS, STAT_FROM, STAT_WHERE,
 };

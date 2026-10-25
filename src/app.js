@@ -3,10 +3,7 @@ const express = require("express");
 const crypto = require("crypto");
 const db = require("./lib/db");
 const tg = require("./lib/tg");
-const { verifyInitData } = require("./lib/auth");
 const bot = require("./bot");
-const F = require("./services/finance");
-const T = require("./services/transactions");
 const Reminders = require("./services/reminders");
 
 const app = express();
@@ -17,7 +14,6 @@ const eq = (a, b) => {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
 
-app.get("/", (req, res) => res.type("html").send("<!doctype html><meta charset=utf-8><title>Hamyon</title><body style='font-family:sans-serif;padding:40px'><h1>Hamyon</h1><p>Shaxsiy moliya — Telegram bot.</p>"));
 app.get("/api/health", async (req, res) => {
   try { await db.query("select 1"); res.json({ ok: true }); } catch (e) { res.status(500).json({ ok: false }); }
 });
@@ -64,29 +60,13 @@ app.post("/api/admin/setup", cronAuth, async (req, res) => {
   res.json({ ok: hook.ok && cmds.ok, webhook: hook.ok, commands: cmds.ok, menu: menu.ok });
 });
 
-// ── Mini App API (initData bilan) ──────────────────────────────────────
-async function miniAuth(req, res, next) {
-  const initData = (req.get("authorization") || "").replace(/^tma\s+/i, "");
-  const tgUser = verifyInitData(initData, process.env.BOT_TOKEN);
-  if (!tgUser) return res.status(401).json({ error: "unauthorized" });
-  const r = await db.query("select * from users where tg_id=$1", [tgUser.id]);
-  if (!r.rows[0]) return res.status(403).json({ error: "Avval botda /start bosing" });
-  req.user = r.rows[0];
-  next();
-}
-const wrap = (fn) => (req, res) => fn(req, res).catch((e) => {
-  if (e instanceof T.UserError) return res.status(400).json({ error: e.message });
-  console.error(e);
-  res.status(500).json({ error: "server" });
-});
+// ── Mini App / web API ─────────────────────────────────────────────────
+app.use("/api", require("./api"));
 
-app.get("/api/dashboard", miniAuth, wrap(async (req, res) => res.json(await F.dashboard(req.user))));
-app.get("/api/transactions", miniAuth, wrap(async (req, res) => res.json(await T.recent(req.user.id, Math.min(Number(req.query.limit) || 50, 200)))));
-app.post("/api/transactions", miniAuth, wrap(async (req, res) => {
-  const b = req.body || {};
-  const tx = await T.createTx(req.user.id, { ...b, accountId: b.account_id, toAccountId: b.to_account_id, categoryId: b.category_id, idemKey: b.idempotency_key, source: "web" });
-  res.status(tx.created ? 201 : 200).json({ id: tx.id, created: tx.created });
-}));
-app.delete("/api/transactions/:id", miniAuth, wrap(async (req, res) => res.json({ ok: await T.deleteTx(req.user.id, Number(req.params.id)) })));
+// ── Frontend (public/) va sahifa manzillari (SPA) ──────────────────────
+const path = require("path");
+const PUBLIC = path.join(__dirname, "..", "public");
+app.use(express.static(PUBLIC, { maxAge: process.env.NODE_ENV === "production" ? "5m" : 0 }));
+app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(PUBLIC, "index.html")));
 
 module.exports = app;
