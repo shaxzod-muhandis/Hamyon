@@ -8,6 +8,7 @@ Interfeys va hisob-kitob qoidalari: `TZ — Hamyon UI/UX` hujjati.
 - **Tez kiritish** — shunchaki yozing: `45000 non`, `45k korzinka kecha`, `+5mln oylik`.
   Kategoriya kalit so'zdan aniqlanadi, aniqlanmasa tugmalar chiqadi. Har saqlashdan keyin
   `↩️ Bekor qilish · 💳 Hisob · 🏷 Kategoriya` tugmalari.
+- **Keyingi oy rejasi**: nimalarga pul ajratish — muhim xarajatlar va jamg'arma/maqsadlar. Kutilayotgan tushum − majburiy to'lovlar − ajratilgan = ajratilmagan qoldiq. Botda 🏠 Asosiy va `/keyingi`, `/muhim 1.2mln Ijara`, `/maqsad 1mln Safar`; Mini App'da Asosiy va Reja sahifalari.
 - **Tugmalar**: ➖ Chiqim · ➕ Kirim · 🔁 O'tkazma · 🏠 Asosiy · 📊 Bugun · 🗓 Oy · 🧾 Oxirgi · 💳 Hisoblar · 🎯 Budjet · 🤝 Qarzlar · 🔮 Prognoz
 - **Buyruqlar**: `/bugun /oy /oxirgi /bekor /hisoblar /budjet /qarz /prognoz /reja /eslatma /sozlamalar /yordam`
   `/limit oziq 2mln` · `/hisob Humo karta 1mln` · `/qoldiq Naqd 500000` · `/maosh 8mln 5` ·

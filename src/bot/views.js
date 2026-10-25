@@ -131,7 +131,30 @@ function forecastView(f, safe, up, today) {
     (upLines.length ? `\n\n<b>Yaqin to‘lovlar · 14 kun · ${short(up.total)}</b>\n${upLines.join("\n")}` : "");
 }
 
+// Keyingi oy rejasi (nimalarga pul ajratish): matn + tugmalar
+function monthPlanView(p) {
+  const name = D.monthName(p.month_start);
+  const Name = name[0].toUpperCase() + name.slice(1);
+  const L = [`📅 <b>${Name} rejasi</b>${p.is_next ? " · keyingi oy" : ""}`, ""];
+  L.push(`Kutilayotgan tushum: <b>+${group(p.income)}</b>`);
+  L.push(`Majburiy (avtomatik): ${MINUS}${group(p.mandatory)}`);
+  if (p.auto.length) L.push(`<i>${p.auto.slice(0, 4).map((x) => esc(x.name)).join(", ")}${p.auto.length > 4 ? "…" : ""}</i>`);
+  L.push(`Xarajatlar (siz kiritgan): ${MINUS}${group(p.spend)}${p.important ? ` <i>(shundan muhim ${group(p.important)})</i>` : ""}`);
+  L.push(`Jamg‘arma va maqsadlar: ${MINUS}${group(p.save)}`);
+  L.push(`<b>Ajratilmagan: ${p.free < 0 ? MINUS : ""}${group(p.free)}${NB}so‘m</b> ${p.free >= 0 ? "🟢" : "🔴 (tushumdan ko‘p ajratilgan)"}`);
+  const num = new Map(p.items.map((it, i) => [it.id, i + 1]));
+  const line = (it) => `${num.get(it.id)}. ${it.done ? "✅" : "⬜"} ${esc(it.title)} — ${group(it.amount)}${it.category_name ? ` <i>· ${esc(it.category_name)}</i>` : ""}`;
+  const groups = [["🔴 Muhim xarajatlar", p.items.filter((i) => i.kind === "spend" && i.important)], ["🛒 Boshqa xarajatlar", p.items.filter((i) => i.kind === "spend" && !i.important)], ["🐖 Jamg‘arma va maqsadlar", p.items.filter((i) => i.kind === "save")]];
+  for (const [title, list] of groups) if (list.length) L.push("", `<b>${title}</b>`, ...list.map(line));
+  if (!p.items.length) L.push("", "Hali reja kiritilmagan. Nimalarga pul ajratmoqchisiz?", "<code>/muhim 1.2mln Ijara</code> · <code>/maqsad 1mln Jamg‘arma</code>");
+  const rows = [];
+  p.items.forEach((it, i) => { rows.push({ text: `${it.done ? "↩️" : "✅"} ${i + 1}`, callback_data: `mpd:${it.id}` }, { text: `🗑 ${i + 1}`, callback_data: `mpx:${it.id}` }); });
+  const kb = [...grid(rows, 4), [{ text: "➕ Muhim xarajat", callback_data: "mp+:spend" }, { text: "🐖 Jamg‘arma / maqsad", callback_data: "mp+:save" }]];
+  return { text: L.join("\n"), kb: { inline_keyboard: kb } };
+}
+
 module.exports = {
+  monthPlanView,
   BTN, BTN_TO_CMD, mainKeyboard, bar, dayHeader, money, txLine, pill, saved, txKeyboard, grid,
   categoryKeyboard, accountKeyboard, accountsView, accIcon, budgetView, safeView, forecastView,
 };

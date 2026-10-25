@@ -3,6 +3,8 @@ import { h, icon, fmt, short, signed, group, change, pill, cap, fmtDay, weekdayN
 import { cached, navigate, newTx } from "../app.js";
 import { paceChart, forecastChart } from "../charts.js";
 import { txRow, panel, ph, link, kpi, emptyBox } from "./shared.js";
+import { monthPlanPanel } from "./monthplan.js";
+import { reload } from "../app.js";
 
 export default {
   sub(store) {
@@ -34,6 +36,7 @@ export default {
 
     // ── 3-blok ──
     out.push(h("div", { class: "lbl" }, "Keyingi oy nima bo‘ladi"));
+    out.push(monthPlanPanel(d.next_month_plan, { compact: true, onChanged: () => reload() }));
     out.push(h("div", { class: "row" },
       h("div", { class: "grow-l" }, forecastPanel(d)),
       h("div", { class: "grow-r stack" }, upcomingPanel(d, today), debtsCard(d))));

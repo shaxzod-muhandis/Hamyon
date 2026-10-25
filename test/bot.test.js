@@ -210,3 +210,35 @@ test("o'chirish: /oxirgi -> tasdiq -> o'chirildi", async () => {
   await press(del.callback_data);
   assert.notStrictEqual((await F.totals(u)).total, before);
 });
+
+test("keyingi oy rejasi: muhim xarajat va maqsad qo'shish, bajarildi, o'chirish", async () => {
+  const u = await H.user();
+  await say("/maosh 8mln 5");
+  assert.match(await say("/muhim 1.2mln Ijara"), /Rejaga qo‘shildi: <b>Ijara<\/b>/);
+  assert.match(await say("/maqsad 1mln Safar uchun"), /Jamg‘arma va maqsadlar/);
+  let t = await say("/keyingi");
+  assert.match(t, /rejasi/);
+  assert.match(t, /Ajratilmagan/);
+  assert.match(t, /1\. ⬜ Ijara — 1 200 000/);
+  assert.match(t, /2\. ⬜ Safar uchun/);
+  // tugma orqali: summa va nom yoziladi
+  await press("mp+:spend");
+  assert.match(await say("350k Dori-darmon"), /Rejaga qo‘shildi/);
+  const items = (await db.query("select * from month_plan_items where user_id=$1 order by id", [u.id])).rows;
+  assert.deepStrictEqual(items.map((i) => [i.title, i.amount, i.kind, i.important]), [["Ijara", 1200000, "spend", true], ["Safar uchun", 1000000, "save", false], ["Dori-darmon", 350000, "spend", true]]);
+  // nomsiz kiritish rad etiladi
+  await say("/muhim");
+  assert.match(await say("500000"), /Summa va nomini yozing/);
+  await say("/bekor");
+  // bajarildi / o'chirish
+  await say("/keyingi");
+  await press(`mpd:${items[0].id}`);
+  assert.strictEqual((await db.query("select done from month_plan_items where id=$1", [items[0].id])).rows[0].done, true);
+  await press(`mpx:${items[2].id}`);
+  assert.strictEqual((await db.query("select count(*)::int n from month_plan_items where user_id=$1", [u.id])).rows[0].n, 2);
+  // asosiy sahifada keyingi oy bo'limi
+  const home = await say("🏠 Asosiy");
+  assert.match(home, /rejasi/);
+  assert.match(home, /Ajratilmagan/);
+  assert.ok(H.lastMarkup().inline_keyboard.flat().some((b) => b.callback_data === "mp:v"));
+});

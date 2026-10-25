@@ -242,3 +242,40 @@ test("boshqa foydalanuvchi ma'lumotiga tegib bo'lmaydi", async () => {
   assert.strictEqual((await api("POST", "/transactions", { kind: "expense", amount: 1, account_id: accNaqd, category_id: catFood }, oa)).status, 400);
   assert.strictEqual((await api("GET", "/transactions", null, oa)).body.items.length, 0);
 });
+
+test("keyingi oy rejasi API: hisob-kitob va CRUD", async () => {
+  const empty = await ok("GET", "/month-plan");
+  assert.strictEqual(empty.is_next, true);
+  assert.strictEqual(empty.items.length, 0);
+  const nextMonth = D.addMonths(today, 1).slice(0, 7);
+  assert.strictEqual(empty.month, nextMonth);
+  const a = await ok("POST", "/month-plan", { title: "Ijara", amount: 1200000, kind: "spend", category_id: catFood });
+  const b = await ok("POST", "/month-plan", { title: "Safar", amount: 1000000, kind: "save" });
+  assert.strictEqual(a.important, true);
+  assert.strictEqual(b.important, false);
+  assert.match((await api("POST", "/month-plan", { title: "", amount: 5, kind: "spend" })).body.error, /Nomini/);
+  assert.match((await api("POST", "/month-plan", { title: "x", amount: 0, kind: "spend" })).body.error, /0 dan katta/);
+  assert.match((await api("POST", "/month-plan", { title: "x", amount: 5, kind: "boshqa" })).body.error, /Tur/);
+  let p = await ok("GET", "/month-plan");
+  assert.strictEqual(p.spend, 1200000);
+  assert.strictEqual(p.save, 1000000);
+  assert.strictEqual(p.important, 1200000);
+  assert.strictEqual(p.free, p.income - p.mandatory - 2200000);
+  // joriy oy alohida
+  assert.strictEqual((await ok("GET", `/month-plan?month=${today.slice(0, 7)}`)).items.length, 0);
+  await ok("PUT", `/month-plan/${a.id}`, { done: true, amount: 1300000 });
+  p = await ok("GET", "/month-plan");
+  assert.strictEqual(p.done_count, 1);
+  assert.strictEqual(p.spend, 1300000);
+  const dash = await ok("GET", "/dashboard");
+  assert.strictEqual(dash.next_month_plan.count, 2);
+  assert.strictEqual(dash.next_month_plan.free, p.free);
+  // boshqa foydalanuvchi o'zgartira olmaydi
+  const other = { id: 889, first_name: "Other2" };
+  await H.say("/start", other);
+  const oa = { authorization: "tma " + initData(other) };
+  assert.strictEqual((await api("PUT", `/month-plan/${a.id}`, { done: false }, oa)).status, 400);
+  assert.strictEqual((await api("DELETE", `/month-plan/${a.id}`, null, oa)).body.ok, false);
+  await ok("DELETE", `/month-plan/${a.id}`);
+  assert.strictEqual((await ok("GET", "/month-plan")).items.length, 1);
+});

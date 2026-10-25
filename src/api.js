@@ -12,6 +12,7 @@ const Debts = require("./services/debts");
 const Planned = require("./services/planned");
 const Plan = require("./services/plan");
 const Analytics = require("./services/analytics");
+const MonthPlan = require("./services/monthplan");
 const { REMINDER_LABELS } = require("./bot");
 
 const { UserError } = T;
@@ -255,6 +256,12 @@ router.post("/plan/:id/done", wrap(async (req, res) => {
   const tx = await Plan.markDone(req.user, id(req), req.body?.date, req.body?.account_id);
   res.status(201).json({ transaction_id: tx.id });
 }));
+
+// ── Keyingi oy rejasi: nimalarga pul ajratish ──────────────────────────
+router.get("/month-plan", wrap(async (req, res) => res.json(await MonthPlan.get(req.user, req.today, req.query.month))));
+router.post("/month-plan", wrap(async (req, res) => res.status(201).json(await MonthPlan.add(req.user, req.today, req.body || {}))));
+router.put("/month-plan/:id", wrap(async (req, res) => res.json(await MonthPlan.update(req.user, id(req), req.body || {}))));
+router.delete("/month-plan/:id", wrap(async (req, res) => res.json({ ok: await MonthPlan.remove(req.user, id(req)) })));
 
 // ── Tahlil ─────────────────────────────────────────────────────────────
 router.get("/analytics", wrap(async (req, res) => res.json(await Analytics.get(req.user, req.today, req.query.months))));

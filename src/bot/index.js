@@ -9,6 +9,7 @@ const T = require("../services/transactions");
 const F = require("../services/finance");
 const Debts = require("../services/debts");
 const Planned = require("../services/planned");
+const MonthPlan = require("../services/monthplan");
 const { parseEntry, parseDueDate } = require("./parse");
 const V = require("./views");
 
@@ -153,6 +154,7 @@ function helpText() {
     `/maosh <i>8mln 5</i> — oylik tushum (har oyning 5-kuni)\n` +
     `/majburiy <i>1.2mln 10 Ijara</i> — oylik majburiy to‘lov\n` +
     `/qarzolish <i>Akmal 2mln 10.11</i> · /qarzberish <i>Akmal 1mln</i>\n` +
+    `/keyingi — keyingi oy rejasi · /muhim <i>1.2mln Ijara</i> · /maqsad <i>1mln Safar</i>\n` +
     `/reja — rejali tushum va to‘lovlar · /eslatma · /kurs · /chegara`
   );
 }
@@ -260,7 +262,11 @@ cmd.home = async (ctx) => {
     lines.push("", "⚠️ " + d.debts_summary.overdue.map((o) => `${esc(o.who)}: ${o.days_late} kun kechikdi`).join(", "));
   if (d.forecast.below_threshold)
     lines.push("", `🔴 ${D.fmtDay(d.forecast.min_date)} kuni qoldiq xavfsiz chegaradan pastga tushishi mumkin → /prognoz`);
-  return reply(ctx, lines.join("\n"));
+  const np = d.next_month_plan;
+  lines.push("", `📅 <b>${D.monthName(np.month_start)[0].toUpperCase() + D.monthName(np.month_start).slice(1)} rejasi</b>`);
+  if (np.count) lines.push(`Tushum +${short(np.income)} · majburiy ${MINUS}${short(np.mandatory)} · ajratilgan ${MINUS}${short(np.spend + np.save)}`, `<b>Ajratilmagan: ${np.free < 0 ? MINUS : ""}${short(Math.abs(np.free))}</b> ${np.free >= 0 ? "🟢" : "🔴"}`);
+  else lines.push("Keyingi oyda nimalarga pul ajratmoqchisiz? Muhim xarajat va maqsadlarni kiriting.");
+  return reply(ctx, lines.join("\n"), { inline_keyboard: [[{ text: "📅 Keyingi oy rejasi", callback_data: "mp:v" }, { text: "➕ Muhim xarajat", callback_data: "mp+:spend" }]] });
 };
 
 cmd.forecast = async (ctx) => {
@@ -285,6 +291,26 @@ cmd.reja = async (ctx) => {
   ] };
   return reply(ctx, `<b>Reja</b>\n\n${lines.join("\n")}\n\n<i>Kutilayotgan tushum mavjud pulga qo‘shilmaydi, faqat prognozga ta’sir qiladi.</i>`, kb);
 };
+
+async function showMonthPlan(ctx, editMsgId) {
+  const p = await MonthPlan.get(ctx.user, ctx.today);
+  const v = V.monthPlanView(p);
+  return editMsgId ? tg.edit(ctx.chatId, editMsgId, v.text, v.kb) : reply(ctx, v.text, v.kb);
+}
+cmd.next = (ctx) => showMonthPlan(ctx);
+
+async function addPlanItem(ctx, kind, text) {
+  const e = parseEntry(text);
+  if (!e || !e.note) return reply(ctx, "Summa va nomini yozing: <code>1.2mln Ijara</code>", cancelKb);
+  let category_id = null;
+  if (kind === "spend") category_id = (await T.guessCategory(ctx.user.id, "expense", e.note))?.id || null;
+  const it = await MonthPlan.add(ctx.user, ctx.today, { title: e.note, amount: e.amount, kind, category_id });
+  await clearState(ctx.tgId);
+  await reply(ctx, `✅ Rejaga qo‘shildi: <b>${esc(it.title)}</b> — ${fmt(it.amount)}`);
+  return showMonthPlan(ctx);
+}
+cmd.muhim = async (ctx, args) => (args ? addPlanItem(ctx, "spend", args) : (await setState(ctx.tgId, "mp_item", { kind: "spend" }), reply(ctx, "🔴 <b>Muhim xarajat</b> (keyingi oy)\nSumma va nomini yozing: <code>1.2mln Ijara</code>", cancelKb)));
+cmd.maqsad = async (ctx, args) => (args ? addPlanItem(ctx, "save", args) : (await setState(ctx.tgId, "mp_item", { kind: "save" }), reply(ctx, "🐖 <b>Jamg‘arma / maqsad</b> (keyingi oy)\nSumma va nomini yozing: <code>1mln Safar uchun</code>", cancelKb)));
 
 cmd.maosh = async (ctx, args) => {
   const [a, day] = args.split(/\s+/);
@@ -471,6 +497,7 @@ async function handleStateText(ctx, st, text) {
       `✅ <b>O‘tkazma saqlandi</b>\n${esc(from.name)} → ${esc(to.name)}: <b>${V.money(amount, from.currency)}</b>${toAmount ? ` → ${V.money(toAmount, to.currency)}` : ""}\n<i>Daromad yoki xarajat hisoblanmaydi.</i>${saveNote}`,
       { inline_keyboard: [[{ text: "↩️ Bekor qilish", callback_data: `undo:${tx.id}` }]] });
   }
+  if (st.state === "mp_item") return addPlanItem(ctx, st.data.kind, text);
   if (st.state === "debt_pay") {
     const ds = await Debts.listOpen(ctx.user);
     const d = ds.find((x) => x.id === st.data.debtId);
@@ -569,6 +596,25 @@ async function onCallback(cb) {
         await finishDebtPay(ctx, d.id, d.remaining);
         return ack();
       }
+      case "mp": {
+        await showMonthPlan(ctx);
+        return ack();
+      }
+      case "mp+": {
+        await setState(ctx.tgId, "mp_item", { kind: p1 });
+        await reply(ctx, p1 === "spend" ? "🔴 <b>Muhim xarajat</b> (keyingi oy)\nSumma va nomini yozing: <code>1.2mln Ijara</code>" : "🐖 <b>Jamg‘arma / maqsad</b> (keyingi oy)\nSumma va nomini yozing: <code>1mln Safar uchun</code>", cancelKb);
+        return ack();
+      }
+      case "mpd": {
+        const cur = (await db.query("select done from month_plan_items where id=$1 and user_id=$2", [Number(p1), user.id])).rows[0];
+        if (cur) await MonthPlan.update(user, Number(p1), { done: !cur.done });
+        await showMonthPlan(ctx, msgId);
+        return ack(cur && !cur.done ? "Bajarildi" : "Qaytarildi");
+      }
+      case "mpx":
+        await MonthPlan.remove(user, Number(p1));
+        await showMonthPlan(ctx, msgId);
+        return ack("O‘chirildi");
       case "pl": {
         await Planned.toggle(user.id, Number(p1));
         await tg.edit(chatId, msgId, "Prognoz yangilandi ✅ — /prognoz");
@@ -607,7 +653,7 @@ const ALIASES = {
   bugun: "today", oy: "month", oxirgi: "recent", hisoblar: "accounts", hisob: "hisob", budjet: "budget", qarz: "debts", qarzlar: "debts",
   prognoz: "forecast", sozlamalar: "settings", ilova: "app", app: "app", limit: "limit", qoldiq: "qoldiq", maosh: "maosh",
   majburiy: "majburiy", qarzolish: "qarzolish", qarzberish: "qarzberish", kurs: "kurs", chegara: "chegara", eslatma: "eslatma",
-  bekor: "bekor", reja: "reja",
+  bekor: "bekor", reja: "reja", keyingi: "next", muhim: "muhim", maqsad: "maqsad", ajrat: "maqsad",
 };
 
 async function onMessage(msg, updateId) {
@@ -653,7 +699,7 @@ const BOT_COMMANDS = [
   ["chiqim", "Chiqim kiritish"], ["kirim", "Kirim kiritish"], ["otkazma", "Hisoblar orasida o‘tkazma"], ["asosiy", "Asosiy: erkin pul va xulosa"],
   ["bugun", "Bugungi operatsiyalar"], ["oy", "Oy natijasi"], ["oxirgi", "Oxirgi operatsiyalar"], ["bekor", "Oxirgisini bekor qilish"],
   ["hisoblar", "Hisoblar va qoldiqlar"], ["budjet", "Budjet va limitlar"], ["qarz", "Qarzlar"], ["prognoz", "Prognoz va yaqin to‘lovlar"],
-  ["reja", "Rejali tushum va to‘lovlar"], ["eslatma", "Eslatmalar"], ["sozlamalar", "Sozlamalar"], ["yordam", "Yordam"],
+  ["keyingi", "Keyingi oy rejasi: nimalarga pul ajratish"], ["reja", "Rejali tushum va to‘lovlar"], ["eslatma", "Eslatmalar"], ["sozlamalar", "Sozlamalar"], ["yordam", "Yordam"],
 ].map(([command, description]) => ({ command, description }));
 
 module.exports = { handleUpdate, BOT_COMMANDS, REMINDER_LABELS, helpText };

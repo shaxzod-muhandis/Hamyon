@@ -245,6 +245,7 @@ async function dashboard(user, now = new Date()) {
   const elapsed = D.dayNum(today), dim = D.daysInMonth(today);
   const restPlanned = (await scheduled(user.id, D.addDays(today, 1), D.monthEnd(today), { forecastOnlyIncome: false }))
     .filter((x) => x.amount < 0).reduce((s, x) => s - x.amount, 0);
+  const nextPlan = await require("./monthplan").get(user, today);
   const projection = Math.round(daily[daily.length - 1] + fc.avg_daily * (dim - elapsed) + restPlanned);
   return {
     today_date: today,
@@ -257,6 +258,7 @@ async function dashboard(user, now = new Date()) {
     budget: { limit: bud.limit, spent: bud.spent, pct: bud.pct, month_pct: bud.month_pct },
     month_stats: { income: stats.income, expense: stats.expense, net_flow: stats.income - stats.expense, saved, prev: { income: prevStats.income, expense: prevStats.expense } },
     forecast: fc,
+    next_month_plan: { ...nextPlan, items: nextPlan.items.slice(0, 6), auto: nextPlan.auto.slice(0, 6), count: nextPlan.items.length },
     upcoming: up.items,
     debts_summary: {
       receivables: t.receivables, payables: t.payables,

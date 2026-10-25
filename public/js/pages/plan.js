@@ -3,14 +3,20 @@ import { h, icon, fmt, short, group, fmtDay, monthName, openModal, confirmBox, t
 import { get, post, put, del } from "../api.js";
 import { store, reload, navigate } from "../app.js";
 import { panel, ph, emptyBox } from "./shared.js";
+import { monthPlanPanel } from "./monthplan.js";
 
 const REC = { none: "Bir marta", daily: "Har kuni", weekly: "Har hafta", monthly: "Har oy", yearly: "Har yil" };
+let planMonth = null;
 const KIND_TXT = { planned: "Rejalashtirilgan xarajat", debt: "Qarz to‘lovi", income: "Kutilayotgan tushum" };
 
 export default {
-  sub: () => "Prognoz davri",
+  sub: () => "Nimalarga pul ajratish va prognoz",
 
   async render(ctx) {
+    const cur = store.today.slice(0, 7);
+    const nxt = new Date(Date.UTC(+cur.slice(0, 4), +cur.slice(5, 7), 1)).toISOString().slice(0, 7);
+    if (!planMonth || ![cur, nxt].includes(planMonth)) planMonth = nxt;
+    const mp = await get(`/month-plan?month=${planMonth}`);
     const p = await ctx.cached("/plan");
     ctx.setHead("Reja va prognoz", `${fmtDay(p.period.start)} — ${fmtDay(p.period.end)}`);
     const f = p.formula, r = p.reliability;
@@ -51,7 +57,8 @@ export default {
     const ops = panel(ph("Kelgusi operatsiyalar va qoldiq"),
       rows.length ? h("div", { class: "list", style: { margin: "0 -20px" } }, ...rows) : emptyBox("Rejali operatsiya yo‘q", "Maosh, ijara kabi takrorlanuvchi to‘lovlarni qo‘shing."),
       h("button", { class: "btn", style: { marginTop: "14px" }, onClick: () => form(null, "expense") }, icon("plus"), "Rejali operatsiya qo‘shish"));
-    return [h("div", { class: "row" }, h("div", { class: "grow-l" }, formula), h("div", { class: "grow-r" }, incomes)), ops];
+    const monthSeg = h("div", { class: "seg", role: "tablist" }, ...[[nxt, "Keyingi oy"], [cur, "Shu oy"]].map(([v, t]) => h("button", { role: "tab", "aria-selected": String(planMonth === v), onClick: () => { planMonth = v; reload(); } }, t)));
+    return [h("div", { class: "lbl" }, "Nimalarga pul ajratish"), monthSeg, monthPlanPanel(mp, { onChanged: () => reload() }), h("div", { class: "lbl" }, "Prognoz"), h("div", { class: "row" }, h("div", { class: "grow-l" }, formula), h("div", { class: "grow-r" }, incomes)), ops];
   },
 };
 
