@@ -14,10 +14,18 @@ Environment Variables va lokal `.env.local` ga.
 
 ## 2. Baza (Supabase)
 
-1. supabase.com → New project (region: sizga yaqin).
-2. Settings → Database → **Connection pooling** (Transaction, port `6543`) satrini oling → `DATABASE_URL`.
-3. Test uchun **ikkinchi, bo'sh** loyiha oching → `TEST_DATABASE_URL` (testlar yozuv yaratadi).
-4. Lokal: `.env.local` ga `DATABASE_URL` yozing, `npm run db:migrate`. Test bazasi: `npm run db:migrate:test`.
+Hamyon ORM ishlatmaydi (Prisma kerak emas): `pg` va `migrations/*.sql`. Supabase'ning "Connect" sahifasidagi Prisma ko'rsatmalarini bajarmang, faqat ulanish satrlari kerak.
+
+1. supabase.com → New project. Parolni xavfsiz joyda saqlang.
+2. Project → **Connect** → **Transaction pooler** (port `6543`) satrini oling → `DATABASE_URL`.
+   `?pgbouncer=true` qo'shimchasi (Prisma uchun) **kerak emas**, olib tashlang.
+3. (ixtiyoriy) **Session pooler** (port `5432`) → `DIRECT_URL`: migratsiya shu bilan ishlaydi.
+4. Sxemani yaratish — ikki yo'ldan biri:
+   - **SQL Editor (eng oson):** `docs/schema.sql` faylini oching, hammasini nusxalab Supabase → SQL Editor'ga qo'ying → Run. Bir marta.
+   - **Terminal:** `.env.local` ga `DATABASE_URL` (va `DIRECT_URL`) yozing → `npm run db:migrate`.
+5. Test uchun **ikkinchi, bo'sh** loyiha oching → `TEST_DATABASE_URL` → `npm run db:migrate:test`.
+
+**Xavfsizlik:** migratsiya `0004_rls.sql` hamma jadvalda RLS ni yoqadi va `anon`/`authenticated` rollarining huquqini oladi. Ma'lumotga faqat server (to'g'ridan-to'g'ri ulanish) kira oladi; Supabase'ning ochiq Data API orqali moliyaviy ma'lumotni o'qib bo'lmaydi. Yangi jadval qo'shsangiz, RLS ni yoqishni unutmang.
 
 ## 3. GitHub
 

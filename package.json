@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node scripts/dev.js",
     "db:migrate": "node scripts/migrate.js",
+    "db:sql": "node scripts/build-sql.js",
     "db:migrate:test": "node scripts/migrate.js --test",
     "setup:bot": "node scripts/setup-bot.js",
     "test": "node --test --test-concurrency=1 test/parse.test.js test/bot.test.js test/http.test.js test/api.test.js"

@@ -30,7 +30,8 @@ async function migrate(url) {
 }
 
 if (require.main === module) {
-  const url = process.argv.includes("--test") ? process.env.TEST_DATABASE_URL : process.env.DATABASE_URL;
+  // Migratsiya uchun DIRECT_URL (Supabase session pooler, 5432) afzal; bo'lmasa DATABASE_URL
+  const url = process.argv.includes("--test") ? process.env.TEST_DATABASE_URL : process.env.DIRECT_URL || process.env.DATABASE_URL;
   if (!url) {
     console.error("DATABASE_URL (yoki --test uchun TEST_DATABASE_URL) sozlanmagan");
     process.exit(1);
